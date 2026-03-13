@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trophy, Clock, Play, RotateCcw, Check, X, Calculator, Flag, Settings, Plus, Trash2, Upload, Download, BookOpen, ChevronLeft, FileSpreadsheet, FileText } from 'lucide-react';
+import { Trophy, Clock, Play, RotateCcw, Check, X, Calculator, Flag, Settings, Plus, Trash2, Upload, Download, BookOpen, ChevronLeft, FileSpreadsheet, FileText, Volume2, VolumeX } from 'lucide-react';
 
 // --- BỘ CÂU HỎI MẪU TOÁN LỚP 3 ---
 const DEFAULT_QUESTIONS = [
@@ -16,6 +16,14 @@ const DEFAULT_QUESTIONS = [
 ];
 
 const WINNING_SCORE = 5;
+
+const SOUND_URLS = {
+  correct: 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3',
+  wrong: 'https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3',
+  win: 'https://assets.mixkit.co/active_storage/sfx/2002/2002-preview.mp3',
+  click: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3',
+  tick: 'https://assets.mixkit.co/active_storage/sfx/2569/2569-preview.mp3'
+};
 
 // Background Động (Floating Math Symbols)
 const FloatingBackground = ({ is3D }: { is3D: boolean }) => {
@@ -61,6 +69,49 @@ export default function App() {
   const [newQuestion, setNewQuestion] = useState({ question: '', options: ['', '', '', ''], correctAnswer: 0 });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const bgmRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const audio = new Audio('https://assets.mixkit.co/music/preview/mixkit-funny-quirky-comedy-track-43.mp3');
+    audio.loop = true;
+    audio.volume = 0.15;
+    bgmRef.current = audio;
+
+    return () => {
+      audio.pause();
+      audio.src = '';
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!bgmRef.current) return;
+    if (soundEnabled) {
+      bgmRef.current.play().catch(() => {});
+    } else {
+      bgmRef.current.pause();
+    }
+  }, [soundEnabled]);
+
+  useEffect(() => {
+    const handleInteraction = () => {
+      if (soundEnabled && bgmRef.current && bgmRef.current.paused) {
+        bgmRef.current.play().catch(() => {});
+      }
+      document.removeEventListener('click', handleInteraction);
+    };
+    document.addEventListener('click', handleInteraction);
+    return () => document.removeEventListener('click', handleInteraction);
+  }, [soundEnabled]);
+
+  const playSound = (type: keyof typeof SOUND_URLS) => {
+    if (!soundEnabled) return;
+    try {
+      const audio = new Audio(SOUND_URLS[type]);
+      audio.volume = type === 'tick' ? 0.2 : 0.6;
+      audio.play().catch(e => console.log("Audio play failed:", e));
+    } catch (e) {}
+  };
 
   useEffect(() => {
     // 1. Inject Styles
@@ -163,12 +214,15 @@ export default function App() {
             handleTimeOut();
             return 0;
           }
+          if (prev <= 6) {
+            playSound('tick');
+          }
           return prev - 1;
         });
       }, 1000);
       return () => clearInterval(timer);
     }
-  }, [gameState, feedback.show, currentQIndex]);
+  }, [gameState, feedback.show, currentQIndex, soundEnabled]);
 
   const handleTimeOut = () => {
     setTimeout(() => {
@@ -177,6 +231,7 @@ export default function App() {
   };
 
   const startGame = () => {
+    playSound('click');
     if (questions.length === 0) {
       showToast("Vui lòng thêm ít nhất 1 câu hỏi!");
       return;
@@ -195,6 +250,7 @@ export default function App() {
     const isCorrect = selectedOptionIndex === currentQuestion.correctAnswer;
 
     if (isCorrect) {
+      playSound('correct');
       const pullAmount = team === 'team1' ? -1 : 1;
       const newPosition = ropePosition + pullAmount;
       
@@ -206,6 +262,7 @@ export default function App() {
         nextQuestion(newPosition);
       }, 2000);
     } else {
+      playSound('wrong');
       setLockedOut(prev => ({ ...prev, [team]: true }));
       setFeedback({ show: true, team, isCorrect: false, selectedIdx: selectedOptionIndex });
       
@@ -220,6 +277,7 @@ export default function App() {
 
   const nextQuestion = (currentPos: number) => {
     if (currentPos <= -WINNING_SCORE || currentPos >= WINNING_SCORE) {
+      playSound('win');
       setGameState('end');
       return;
     }
@@ -229,6 +287,7 @@ export default function App() {
       setLockedOut({ team1: false, team2: false });
       setFeedback({ show: false, team: null, isCorrect: false });
     } else {
+      playSound('win');
       setGameState('end');
     }
   };
@@ -392,11 +451,24 @@ export default function App() {
         
         {/* Nút Cài Đặt */}
         <button 
-          onClick={() => setGameState('settings')}
+          onClick={() => { playSound('click'); setGameState('settings'); }}
           className="absolute top-8 right-8 glass-button p-4 rounded-full text-white hover:text-white z-20 border-white/40 bg-white/10 hover:bg-white/30 shadow-2xl"
           title="Cài đặt câu hỏi"
         >
           <Settings className="w-8 h-8" />
+        </button>
+
+        <button 
+          onClick={() => {
+            setSoundEnabled(!soundEnabled);
+            if (!soundEnabled) {
+              try { const audio = new Audio(SOUND_URLS.click); audio.volume = 0.6; audio.play().catch(()=>{}); } catch(e) {}
+            }
+          }}
+          className="absolute top-8 right-28 glass-button p-4 rounded-full text-white hover:text-white z-20 border-white/40 bg-white/10 hover:bg-white/30 shadow-2xl"
+          title={soundEnabled ? "Tắt âm thanh" : "Bật âm thanh"}
+        >
+          {soundEnabled ? <Volume2 className="w-8 h-8" /> : <VolumeX className="w-8 h-8" />}
         </button>
 
         <div className="glass-panel p-12 rounded-[3rem] max-w-3xl w-full text-center relative z-10 bg-white/20 border-white/30 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
@@ -429,7 +501,7 @@ export default function App() {
         <div className="glass-panel flex-1 rounded-[3rem] p-8 max-w-7xl mx-auto w-full z-10 bg-white/70 flex flex-col shadow-2xl">
           
           <div className="flex items-center justify-between mb-8 border-b-2 border-white/50 pb-4">
-            <button onClick={() => setGameState('start')} className="glass-button px-6 py-2 rounded-full font-bold flex items-center gap-2">
+            <button onClick={() => { playSound('click'); setGameState('start'); }} className="glass-button px-6 py-2 rounded-full font-bold flex items-center gap-2">
               <ChevronLeft /> Quay lại
             </button>
             <h2 className="text-4xl font-black text-gray-800">CÀI ĐẶT CÂU HỎI</h2>
@@ -569,7 +641,7 @@ export default function App() {
           </div>
 
           <button 
-            onClick={() => setGameState('start')}
+            onClick={() => { playSound('click'); setGameState('start'); }}
             className="glass-button bg-white hover:bg-gray-100 text-gray-900 text-xl font-bold py-4 px-10 rounded-full inline-flex items-center gap-3"
           >
             <RotateCcw /> QUAY VỀ MÀN HÌNH CHÍNH
@@ -586,6 +658,14 @@ export default function App() {
     <div className="min-h-screen mesh-bg flex flex-col font-sans overflow-hidden text-gray-800 relative">
       <FloatingBackground is3D={false} />
       
+      <button 
+        onClick={() => setSoundEnabled(!soundEnabled)}
+        className="absolute top-4 right-4 glass-button p-3 rounded-full text-gray-800 z-50 border-white/40 bg-white/40 hover:bg-white/60 shadow-lg"
+        title={soundEnabled ? "Tắt âm thanh" : "Bật âm thanh"}
+      >
+        {soundEnabled ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
+      </button>
+
       {/* HEADER SECTION (Chứa thanh kéo co) */}
       <header className="h-48 glass-panel bg-white/40 border-b-0 rounded-b-[3rem] mx-4 mt-4 flex flex-col items-center justify-center px-10 z-10 relative shadow-lg">
         
