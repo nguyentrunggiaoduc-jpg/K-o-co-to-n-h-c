@@ -70,24 +70,18 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const bgmRef = useRef<HTMLAudioElement | null>(null);
+  const bgmRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
-    const audio = new Audio('https://assets.mixkit.co/music/preview/mixkit-funny-quirky-comedy-track-43.mp3');
-    audio.loop = true;
-    audio.volume = 0.15;
-    bgmRef.current = audio;
-
-    return () => {
-      audio.pause();
-      audio.src = '';
-    };
+    if (bgmRef.current) {
+      bgmRef.current.volume = 0.15;
+    }
   }, []);
 
   useEffect(() => {
     if (!bgmRef.current) return;
     if (soundEnabled) {
-      bgmRef.current.play().catch(() => {});
+      bgmRef.current.play().catch((e) => console.log("Autoplay prevented:", e));
     } else {
       bgmRef.current.pause();
     }
@@ -98,8 +92,8 @@ export default function App() {
       if (soundEnabled && bgmRef.current && bgmRef.current.paused) {
         bgmRef.current.play().catch(() => {});
       }
-      document.removeEventListener('click', handleInteraction);
     };
+    // Lắng nghe mọi click trên trang để đảm bảo nhạc được phát (vượt qua chính sách autoplay của trình duyệt)
     document.addEventListener('click', handleInteraction);
     return () => document.removeEventListener('click', handleInteraction);
   }, [soundEnabled]);
@@ -232,6 +226,9 @@ export default function App() {
 
   const startGame = () => {
     playSound('click');
+    if (bgmRef.current && soundEnabled) {
+      bgmRef.current.play().catch(() => {});
+    }
     if (questions.length === 0) {
       showToast("Vui lòng thêm ít nhất 1 câu hỏi!");
       return;
@@ -656,6 +653,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen mesh-bg flex flex-col font-sans overflow-hidden text-gray-800 relative">
+      <audio ref={bgmRef} src="https://upload.wikimedia.org/wikipedia/commons/c/c5/Disco_con_Tutti.ogg" loop preload="auto" />
       <FloatingBackground is3D={false} />
       
       <button 
